@@ -8,6 +8,7 @@ import com.gameengine.core.GameLogic;
 import com.gameengine.core.GameObject;
 import com.gameengine.core.ParticleSystem;
 import com.gameengine.graphics.IRenderer;
+import com.gameengine.input.InputManager;
 import com.gameengine.math.Vector2;
 import com.gameengine.scene.Scene;
 
@@ -15,6 +16,7 @@ import java.util.*;
 
 public class GameScene extends Scene {
     private final GameEngine engine;
+    private final InputManager inputManager;
     private IRenderer renderer;
     private Random random;
     private float time;
@@ -31,6 +33,7 @@ public class GameScene extends Scene {
     public GameScene(GameEngine engine) {
         super("GameScene");
         this.engine = engine;
+        this.inputManager = engine.getInputManager();
     }
 
     @Override
@@ -60,6 +63,11 @@ public class GameScene extends Scene {
     @Override
     public void update(float deltaTime) {
         super.update(deltaTime);
+        boolean escPressed = inputManager != null && (inputManager.isKeyJustPressed(27) || inputManager.isKeyJustPressed(256));
+        if (escPressed) {
+            returnToMenu();
+            return;
+        }
         time += deltaTime;
 
         gameLogic.handlePlayerInput(deltaTime);
@@ -107,8 +115,7 @@ public class GameScene extends Scene {
         }
 
         if (waitingReturn && waitInputTimer >= inputCooldown && (engine.getInputManager().isAnyKeyJustPressed() || engine.getInputManager().isMouseButtonJustPressed(0))) {
-            MenuScene menu = new MenuScene(engine, "MainMenu");
-            engine.setScene(menu);
+            returnToMenu();
             return;
         }
 
@@ -371,6 +378,12 @@ public class GameScene extends Scene {
             collisionParticles.clear();
         }
         super.clear();
+    }
+
+    private void returnToMenu() {
+        engine.disableRecording();
+        MenuScene menu = new MenuScene(engine, "MainMenu");
+        engine.setScene(menu);
     }
 }
 

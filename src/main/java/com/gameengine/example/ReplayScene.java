@@ -66,7 +66,8 @@ public class ReplayScene extends Scene {
     @Override
     public void update(float deltaTime) {
         super.update(deltaTime);
-        if (input.isKeyJustPressed(27) || input.isKeyJustPressed(8)) { // ESC/BACK
+        boolean escapePressed = input.isKeyJustPressed(27) || input.isKeyJustPressed(256);
+        if (escapePressed || input.isKeyJustPressed(8)) { // ESC/BACK
             engine.setScene(new MenuScene(engine, "MainMenu"));
             return;
         }
@@ -261,7 +262,7 @@ public class ReplayScene extends Scene {
                 clear();
                 initialize();
             }
-        } else if (input.isKeyJustPressed(27)) { // esc
+        } else if (input.isKeyJustPressed(27) || input.isKeyJustPressed(256)) { // esc
             engine.setScene(new MenuScene(engine, "MainMenu"));
         }
     }

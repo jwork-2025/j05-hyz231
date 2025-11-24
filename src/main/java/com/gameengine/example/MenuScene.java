@@ -5,18 +5,18 @@ import com.gameengine.graphics.IRenderer;
 import com.gameengine.input.InputManager;
 import com.gameengine.math.Vector2;
 import com.gameengine.scene.Scene;
-import com.gameengine.recording.RecordingConfig;
-import com.gameengine.recording.RecordingService;
+import com.gameengine.save.SaveIO;
 
 import java.io.File;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
 
 public class MenuScene extends Scene {
     public enum MenuOption {
         START_GAME,
-        REPLAY,
+        LOAD_GAME,
         EXIT
     }
     
@@ -37,14 +37,30 @@ public class MenuScene extends Scene {
         this.renderer = engine.getRenderer();
         this.inputManager = InputManager.getInstance();
         this.selectedIndex = 0;
-        this.options = new MenuOption[]{MenuOption.START_GAME, MenuOption.REPLAY, MenuOption.EXIT};
+        this.options = new MenuOption[]{MenuOption.START_GAME, MenuOption.LOAD_GAME, MenuOption.EXIT};
         this.selectionMade = false;
         this.selectedOption = null;
         this.replayFiles = new ArrayList<>();
         this.showReplayInfo = false;
     }
     
-    private void loadReplayFiles() {}
+    private void loadReplayFiles() {
+        replayFiles.clear();
+        List<File> files = SaveIO.listSaves();
+        if (files.isEmpty()) {
+            showReplayInfo = false;
+            return;
+        }
+
+        SimpleDateFormat fmt = new SimpleDateFormat("MM-dd HH:mm");
+        int limit = Math.min(3, files.size());
+        for (int i = 0; i < limit; i++) {
+            File f = files.get(i);
+            String label = String.format("%s (%s)", f.getName(), fmt.format(new Date(f.lastModified())));
+            replayFiles.add(label);
+        }
+        showReplayInfo = true;
+    }
     
     @Override
     public void initialize() {
@@ -68,23 +84,22 @@ public class MenuScene extends Scene {
     }
     
     private void handleMenuSelection() {
-        if (inputManager.isKeyJustPressed(38)) {
+        boolean upPressed = inputManager.isKeyJustPressed(38) || inputManager.isKeyJustPressed(265); // AWT / GLFW
+        boolean downPressed = inputManager.isKeyJustPressed(40) || inputManager.isKeyJustPressed(264);
+        boolean confirmPressed = inputManager.isKeyJustPressed(10) || inputManager.isKeyJustPressed(32)
+            || inputManager.isKeyJustPressed(257) || inputManager.isKeyJustPressed(335);
+        boolean escPressed = inputManager.isKeyJustPressed(27) || inputManager.isKeyJustPressed(256);
+
+        if (upPressed) {
             selectedIndex = (selectedIndex - 1 + options.length) % options.length;
-        } else if (inputManager.isKeyJustPressed(40)) {
+        } else if (downPressed) {
             selectedIndex = (selectedIndex + 1) % options.length;
-        } else if (inputManager.isKeyJustPressed(10) || inputManager.isKeyJustPressed(32)) {
+        } else if (confirmPressed) {
             selectionMade = true;
             selectedOption = options[selectedIndex];
-            
-            if (selectedOption == MenuOption.REPLAY) {
-                engine.disableRecording();
-                Scene replay = new ReplayScene(engine, null);
-                engine.setScene(replay);
-            } else if (selectedOption == MenuOption.EXIT) {
-                engine.stop();
-                engine.cleanup();
-                System.exit(0);
-            }
+        } else if (escPressed) {
+            selectionMade = true;
+            selectedOption = MenuOption.EXIT;
         }
         
         Vector2 mousePos = inputManager.getMousePosition();
@@ -100,51 +115,44 @@ public class MenuScene extends Scene {
                 selectedOption = MenuOption.START_GAME;
             } else if (mousePos.y >= buttonY2 - 30 && mousePos.y <= buttonY2 + 30) {
                 selectedIndex = 1;
-                selectedOption = MenuOption.REPLAY;
-                engine.disableRecording();
-                Scene replay = new ReplayScene(engine, null);
-                engine.setScene(replay);
+                selectionMade = true;
+                selectedOption = MenuOption.LOAD_GAME;
             } else if (mousePos.y >= buttonY3 - 30 && mousePos.y <= buttonY3 + 30) {
                 selectedIndex = 2;
                 selectionMade = true;
                 selectedOption = MenuOption.EXIT;
+            }
+        }
+    }
+
+    private void processSelection() {
+        if (!selectionMade || selectedOption == null) {
+            return;
+        }
+
+        switch (selectedOption) {
+            case START_GAME -> switchToGameScene();
+            case LOAD_GAME -> switchToLoadScene();
+            case EXIT -> {
                 engine.stop();
                 engine.cleanup();
                 System.exit(0);
             }
         }
-    }
 
-    private String findLatestRecording() {
-        File dir = new File("recordings");
-        if (!dir.exists() || !dir.isDirectory()) return null;
-        File[] files = dir.listFiles((d, name) -> name.endsWith(".json") || name.endsWith(".jsonl"));
-        if (files == null || files.length == 0) return null;
-        Arrays.sort(files, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
-        return files[0].getAbsolutePath();
-    }
-    
-    private void processSelection() {
-        if (selectedOption == MenuOption.START_GAME) {
-            switchToGameScene();
-        }
+        selectionMade = false;
+        selectedOption = null;
     }
     
     private void switchToGameScene() {
-        Scene gameScene = new GameScene(engine);
-        engine.setScene(gameScene);
-        try {
-            new File("recordings").mkdirs();
-            String path = "recordings/session_" + System.currentTimeMillis() + ".jsonl";
-            RecordingConfig cfg = new RecordingConfig(path);
-            RecordingService svc = new RecordingService(cfg);
-            engine.enableRecording(svc);
-        } catch (Exception e) {
-            
-        }
+        Scene classicScene = Game.createClassicScene(engine);
+        engine.setScene(classicScene);
     }
-    
-    private void switchToReplayScene() {}
+
+    private void switchToLoadScene() {
+        Scene load = new LoadGameScene(engine);
+        engine.setScene(load);
+    }
     
     @Override
     public void render() {
@@ -185,8 +193,8 @@ public class MenuScene extends Scene {
             String text = "";
             if (options[i] == MenuOption.START_GAME) {
                 text = "START GAME";
-            } else if (options[i] == MenuOption.REPLAY) {
-                text = "REPLAY";
+            } else if (options[i] == MenuOption.LOAD_GAME) {
+                text = "LOAD GAME";
             } else if (options[i] == MenuOption.EXIT) {
                 text = "EXIT";
             }
@@ -222,10 +230,15 @@ public class MenuScene extends Scene {
         float hint2X = centerX - hint2Width / 2.0f;
         renderer.drawText(hint2X, height - 70, hint2, 0.6f, 0.6f, 0.6f, 1.0f);
 
-        if (showReplayInfo) {
-            String info = "REPLAY COMING SOON";
-            float w = info.length() * 20.0f;
-            renderer.drawText(centerX - w / 2.0f, height - 140, info, 0.9f, 0.8f, 0.2f, 1.0f);
+        if (showReplayInfo && !replayFiles.isEmpty()) {
+            String label = "RECENT SAVES";
+            float lw = label.length() * 12.0f;
+            renderer.drawText(centerX - lw / 2.0f, height - 160, label, 0.9f, 0.8f, 0.2f, 1.0f);
+            for (int i = 0; i < replayFiles.size(); i++) {
+                String entry = replayFiles.get(i);
+                float ew = entry.length() * 10.0f;
+                renderer.drawText(centerX - ew / 2.0f, height - 140 + i * 18, entry, 0.8f, 0.8f, 0.8f, 1.0f);
+            }
         }
     }
     

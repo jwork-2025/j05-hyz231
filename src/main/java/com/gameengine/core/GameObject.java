@@ -1,7 +1,11 @@
 package com.gameengine.core;
 
+import com.gameengine.math.Vector2;
 import java.util.*;
 
+/**
+ * 游戏对象基类，使用泛型组件系统
+ */
 public class GameObject {
     protected boolean active;
     protected String name;
@@ -18,25 +22,42 @@ public class GameObject {
         this.name = name;
     }
     
+    /**
+     * 更新游戏对象逻辑
+     */
     public void update(float deltaTime) {
         updateComponents(deltaTime);
     }
     
+    /**
+     * 渲染游戏对象
+     */
     public void render() {
         renderComponents();
     }
     
+    /**
+     * 初始化游戏对象
+     */
     public void initialize() {
+        // 子类可以重写此方法进行初始化
     }
     
+    /**
+     * 销毁游戏对象
+     */
     public void destroy() {
         this.active = false;
+        // 销毁所有组件
         for (Component<?> component : components) {
             component.destroy();
         }
         components.clear();
     }
     
+    /**
+     * 添加组件
+     */
     public <T extends Component<T>> T addComponent(T component) {
         component.setOwner(this);
         components.add(component);
@@ -44,6 +65,9 @@ public class GameObject {
         return component;
     }
     
+    /**
+     * 获取组件
+     */
     @SuppressWarnings("unchecked")
     public <T extends Component<T>> T getComponent(Class<T> componentType) {
         for (Component<?> component : components) {
@@ -54,6 +78,9 @@ public class GameObject {
         return null;
     }
     
+    /**
+     * 检查是否有指定类型的组件
+     */
     public <T extends Component<T>> boolean hasComponent(Class<T> componentType) {
         for (Component<?> component : components) {
             if (componentType.isInstance(component)) {
@@ -63,21 +90,31 @@ public class GameObject {
         return false;
     }
     
+    /**
+     * 更新所有组件
+     */
     public void updateComponents(float deltaTime) {
-        for (Component<?> component : components) {
+        // 遍历组件的副本，防止在 update 中销毁组件或 owner 导致并发修改
+        for (Component<?> component : new ArrayList<>(components)) {
             if (component.isEnabled()) {
                 component.update(deltaTime);
             }
         }
     }
     
+    /**
+     * 渲染所有组件
+     */
     public void renderComponents() {
-        for (Component<?> component : components) {
+        // 同样遍历副本以避免并发修改
+        for (Component<?> component : new ArrayList<>(components)) {
             if (component.isEnabled()) {
                 component.render();
             }
         }
     }
+    
+    // Getters and Setters
     
     public boolean isActive() {
         return active;
